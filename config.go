@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"gopkg.in/ini.v1"
 	"os"
-	"reflect"
 	"strings"
 )
 
@@ -49,34 +49,37 @@ func (c *Configuration) IsUsingTus() bool {
 // Config is the global app configuration
 var Config = &Configuration{}
 
-const keyPrefix = "LFS"
-
 func init() {
-	te := reflect.TypeOf(Config).Elem()
-	ve := reflect.ValueOf(Config).Elem()
+	configFile := os.Getenv("LFS_SERVER_GO_CONFIG")
+	if configFile == "" {
+		fmt.Println("LFS_SERVER_GO_CONFIG is not set, Using default config.ini")
+		configFile = "config.ini"
+	}
 
-	for i := 0; i < te.NumField(); i++ {
-		sf := te.Field(i)
-		name := sf.Name
-		field := ve.FieldByName(name)
-
-		envVar := strings.ToUpper(fmt.Sprintf("%s_%s", keyPrefix, name))
-		env := os.Getenv(envVar)
-		tag := sf.Tag.Get("config")
-
-		if env == "" && tag != "" {
-			env = tag
+	configuration := &Configuration{
+		Listen:      "tcp://:8080",
+		Host:        "localhost:8080",
+		ExtOrigin:   "",
+		MetaDB:      "lfs.db",
+		ContentPath: "lfs-content",
+		AdminUser:   "admin",
+		AdminPass:   "admin",
+		Cert:        "",
+		Key:         "",
+		Scheme:      "http",
+		Public:      "true",
+		UseTus:      "false",
+		TusHost:     "localhost:1080",
+	}
+	cfg, err := ini.Load(configFile)
+	if err != nil {
+		//panic(fmt.Sprintf("unable to read config from %s, %v", configFile, err))
+		fmt.Printf("unable to read config from %s, use default config..., %v\n", configFile, err)
+	} else {
+		err = cfg.Section("Main").MapTo(configuration)
+		if err != nil {
+			panic(fmt.Sprintf(fmt.Sprintf("unable to load config.ini[Main], %v", err)))
 		}
-
-		field.SetString(env)
 	}
-
-	if port := os.Getenv("PORT"); port != "" {
-		// If $PORT is set, override LFS_LISTEN. This is useful for deploying to Heroku.
-		Config.Listen = "tcp://:" + port
-	}
-
-	if Config.ExtOrigin == "" {
-		Config.ExtOrigin = fmt.Sprintf("%s://%s", Config.Scheme, Config.Host)
-	}
+	Config = configuration
 }

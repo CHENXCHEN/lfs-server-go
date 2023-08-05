@@ -5,3 +5,4 @@ lfs-test-server-out.*
 lfs-test-server-release.*
 .idea
 lfs-content
+config.ini
