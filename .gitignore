@@ -3,3 +3,5 @@ lfs.db
 lfs-test-server
 lfs-test-server-out.*
 lfs-test-server-release.*
+.idea
+lfs-content

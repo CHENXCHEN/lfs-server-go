@@ -37,6 +37,8 @@ type BatchVars struct {
 type MetaObject struct {
 	Oid      string `json:"oid"`
 	Size     int64  `json:"size"`
+	User     string `json:"user"`
+	Repo     string `json:"repo"`
 	Existing bool
 }
 
@@ -118,7 +120,7 @@ func (v *RequestVars) UploadLink(useTus bool) string {
 	return v.internalLink("objects")
 }
 
-func (v *RequestVars) internalLink(subpath string) string {
+func (v *RequestVars) internalUserRepoLink() string {
 	path := ""
 
 	if len(v.User) > 0 {
@@ -128,10 +130,19 @@ func (v *RequestVars) internalLink(subpath string) string {
 	if len(v.Repo) > 0 {
 		path += fmt.Sprintf("/%s", v.Repo)
 	}
+	return path
+}
+
+func (v *RequestVars) internalLink(subpath string) string {
+	path := v.internalUserRepoLink()
 
 	path += fmt.Sprintf("/%s/%s", subpath, v.Oid)
 
 	return fmt.Sprintf("%s%s", Config.ExtOrigin, path)
+}
+
+func (v *RequestVars) getStoreKey() string {
+	return v.internalUserRepoLink() + "/" + v.Oid
 }
 
 func (v *RequestVars) tusLink() string {
@@ -143,7 +154,8 @@ func (v *RequestVars) tusLink() string {
 }
 
 func (v *RequestVars) VerifyLink() string {
-	path := fmt.Sprintf("/verify/%s", v.Oid)
+	path := v.internalUserRepoLink()
+	path += fmt.Sprintf("/verify/%s", v.Oid)
 
 	return fmt.Sprintf("%s%s", Config.ExtOrigin, path)
 }
@@ -182,16 +194,16 @@ func NewApp(content *ContentStore, meta *MetaStore) *App {
 	r.HandleFunc("/{user}/{repo}/locks", app.requireAuth(app.CreateLockHandler)).Methods("POST").MatcherFunc(MetaMatcher)
 	r.HandleFunc("/{user}/{repo}/locks/{id}/unlock", app.requireAuth(app.DeleteLockHandler)).Methods("POST").MatcherFunc(MetaMatcher)
 
-	r.HandleFunc("/objects/batch", app.requireAuth(app.BatchHandler)).Methods("POST").MatcherFunc(MetaMatcher)
+	//r.HandleFunc("/objects/batch", app.requireAuth(app.BatchHandler)).Methods("POST").MatcherFunc(MetaMatcher)
 
-	route = "/objects/{oid}"
-	r.HandleFunc(route, app.requireAuth(app.GetContentHandler)).Methods("GET", "HEAD").MatcherFunc(ContentMatcher)
-	r.HandleFunc(route, app.requireAuth(app.GetMetaHandler)).Methods("GET", "HEAD").MatcherFunc(MetaMatcher)
-	r.HandleFunc(route, app.requireAuth(app.PutHandler)).Methods("PUT").MatcherFunc(ContentMatcher)
+	//route = "/objects/{oid}"
+	//r.HandleFunc(route, app.requireAuth(app.GetContentHandler)).Methods("GET", "HEAD").MatcherFunc(ContentMatcher)
+	//r.HandleFunc(route, app.requireAuth(app.GetMetaHandler)).Methods("GET", "HEAD").MatcherFunc(MetaMatcher)
+	//r.HandleFunc(route, app.requireAuth(app.PutHandler)).Methods("PUT").MatcherFunc(ContentMatcher)
 
-	r.HandleFunc("/objects", app.requireAuth(app.PostHandler)).Methods("POST").MatcherFunc(MetaMatcher)
+	//r.HandleFunc("/objects", app.requireAuth(app.PostHandler)).Methods("POST").MatcherFunc(MetaMatcher)
 
-	r.HandleFunc("/verify/{oid}", app.VerifyHandler).Methods("POST")
+	r.HandleFunc("/{user}/{repo}/verify/{oid}", app.VerifyHandler).Methods("POST")
 
 	app.addMgmt(r)
 
@@ -378,8 +390,8 @@ func (a *App) VerifyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) LocksHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	repo := vars["repo"]
+	rv := unpackRaw(r)
+	repo := rv.getStoreKey()
 
 	enc := json.NewEncoder(w)
 	ll := &LockList{}
@@ -404,8 +416,8 @@ func (a *App) LocksHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) LocksVerifyHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	repo := vars["repo"]
+	rv := unpackRaw(r)
+	repo := rv.getStoreKey()
 	user := context.Get(r, "USER")
 
 	dec := json.NewDecoder(r.Body)
@@ -450,8 +462,8 @@ func (a *App) LocksVerifyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) CreateLockHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	repo := vars["repo"]
+	rv := unpackRaw(r)
+	repo := rv.getStoreKey()
 	user := context.Get(r, "USER").(string)
 
 	dec := json.NewDecoder(r.Body)
@@ -501,7 +513,8 @@ func (a *App) CreateLockHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) DeleteLockHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	repo := vars["repo"]
+	rv := unpackRaw(r)
+	repo := rv.getStoreKey()
 	lockId := vars["id"]
 	user := context.Get(r, "USER").(string)
 
@@ -615,7 +628,7 @@ func randomLockId() string {
 	return fmt.Sprintf("%x", id[:])
 }
 
-func unpack(r *http.Request) *RequestVars {
+func unpackRaw(r *http.Request) *RequestVars {
 	vars := mux.Vars(r)
 	rv := &RequestVars{
 		User:          vars["user"],
@@ -623,6 +636,11 @@ func unpack(r *http.Request) *RequestVars {
 		Oid:           vars["oid"],
 		Authorization: r.Header.Get("Authorization"),
 	}
+	return rv
+}
+
+func unpack(r *http.Request) *RequestVars {
+	rv := unpackRaw(r)
 
 	if r.Method == "POST" { // Maybe also check if +json
 		var p RequestVars

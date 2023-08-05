@@ -28,10 +28,14 @@ func NewContentStore(base string) (*ContentStore, error) {
 	return &ContentStore{base}, nil
 }
 
+func (s *ContentStore) generateFilePath(meta *MetaObject) string {
+	return filepath.Join(s.basePath, meta.User, meta.Repo, transformKey(meta.Oid))
+}
+
 // Get takes a Meta object and retreives the content from the store, returning
 // it as an io.ReaderCloser. If fromByte > 0, the reader starts from that byte
 func (s *ContentStore) Get(meta *MetaObject, fromByte int64) (io.ReadCloser, error) {
-	path := filepath.Join(s.basePath, transformKey(meta.Oid))
+	path := s.generateFilePath(meta)
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -45,7 +49,7 @@ func (s *ContentStore) Get(meta *MetaObject, fromByte int64) (io.ReadCloser, err
 
 // Put takes a Meta object and an io.Reader and writes the content to the store.
 func (s *ContentStore) Put(meta *MetaObject, r io.Reader) error {
-	path := filepath.Join(s.basePath, transformKey(meta.Oid))
+	path := s.generateFilePath(meta)
 	tmpPath := path + ".tmp"
 
 	dir := filepath.Dir(path)
@@ -86,7 +90,7 @@ func (s *ContentStore) Put(meta *MetaObject, r io.Reader) error {
 
 // Exists returns true if the object exists in the content store.
 func (s *ContentStore) Exists(meta *MetaObject) bool {
-	path := filepath.Join(s.basePath, transformKey(meta.Oid))
+	path := s.generateFilePath(meta)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return false
 	}

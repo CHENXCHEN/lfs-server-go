@@ -77,7 +77,7 @@ func (s *MetaStore) UnsafeGet(v *RequestVars) (*MetaObject, error) {
 			return errNoBucket
 		}
 
-		value := bucket.Get([]byte(v.Oid))
+		value := bucket.Get([]byte(v.getStoreKey()))
 		if len(value) == 0 {
 			return errObjectNotFound
 		}
@@ -103,7 +103,7 @@ func (s *MetaStore) Put(v *RequestVars) (*MetaObject, error) {
 
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	meta := MetaObject{Oid: v.Oid, Size: v.Size}
+	meta := MetaObject{Oid: v.Oid, Size: v.Size, User: v.User, Repo: v.Repo}
 	err := enc.Encode(meta)
 	if err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func (s *MetaStore) Put(v *RequestVars) (*MetaObject, error) {
 			return errNoBucket
 		}
 
-		err = bucket.Put([]byte(v.Oid), buf.Bytes())
+		err = bucket.Put([]byte(v.getStoreKey()), buf.Bytes())
 		if err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ func (s *MetaStore) Delete(v *RequestVars) error {
 			return errNoBucket
 		}
 
-		err := bucket.Delete([]byte(v.Oid))
+		err := bucket.Delete([]byte(v.getStoreKey()))
 		if err != nil {
 			return err
 		}

@@ -1,11 +1,13 @@
 <div class="container">
   <table>
     <tr>
+      <th>Repo</th>
       <th>OID</th>
       <th>Size</th>
     </tr>
     {{range .Objects}}
       <tr>
+        <td>{{.User}}/{{.Repo}}</td>
         <td><a target="_blank" href="/mgmt/raw/{{.Oid}}">{{.Oid}}</a></td>
         <td>{{.Size}}</td>
       </tr>
