@@ -1,4 +1,4 @@
-module github.com/git-lfs/lfs-test-server
+module github.com/CHENXCHEN/lfs-server-go
 
 require (
 	github.com/boltdb/bolt v0.0.0-20150329202000-ee954308d641
